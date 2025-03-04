@@ -8,9 +8,9 @@ function run_wrk () {
     wrk \
         -H 'Accept: */*' \
         -H 'Connection: keep-alive' \
-        --connections 64 \
+        --connections 512 \
         --duration 5s \
-        --threads 4 \
+        --threads 12 \
         --timeout 1s \
         "http://localhost:8000$path"
 }
@@ -25,7 +25,7 @@ function run_benchmark () {
 
     echo "For manual cleanup, run:
 
-        kill \$(ps aux | awk '/target\\/release/ {print \$2}') && docker container stop 'postgres'
+        kill \$(ps aux | awk '/target\\/release/ {print \$2}') ; docker container stop 'postgres'
     "
 
     docker run -d --rm \
@@ -40,7 +40,9 @@ function run_benchmark () {
     sleep 3s
 
     cd ./$framework && \
+    cargo build --release && \
     (./run.sh &) && \
+    sleep 2 && \
     cd $wd
 
     echo "framework '$framework' ($comment) is running"
