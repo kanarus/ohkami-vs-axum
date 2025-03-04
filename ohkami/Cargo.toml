@@ -1,0 +1,22 @@
+[package]
+name    = "ohkami-techempower"
+version = "0.1.0"
+edition = "2024"
+authors = ["kanarus <kanarus786@gmail.com>"]
+
+[dependencies.ohkami]
+git = "https://github.com/ohkami-rs/ohkami"
+branch = "v0.24"
+features = ["rt_tokio"]
+
+[dependencies]
+tokio        = { version = "1.43", features = ["full"] }
+yarte        = { version = "0.15" }
+futures-util = { version = "0.3"  }
+rand         = { version = "0.8", features = ["small_rng"] }
+sqlx         = { version = "0.8", features = ["runtime-tokio", "postgres"] }
+
+[profile.release]
+lto           = true
+panic         = "abort"
+codegen-units = 1
