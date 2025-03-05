@@ -1,0 +1,14 @@
+/* tokio-event_interval-31 */
+
+{
+  "/json": 1156377.6,
+  "/db": 131692.1,
+  "/queries?q=": 129696.92,
+  "/queries?q=42": 3169.92,
+  "/queries?q=1024": 271.36,
+  "/fortunes": 121664.73,
+  "/updates?q=": 1150905.11,
+  "/updates?q=42": 1006264.63,
+  "/updates?q=1024": 907896.12,
+  "/plaintext": 1134285.1
+}
