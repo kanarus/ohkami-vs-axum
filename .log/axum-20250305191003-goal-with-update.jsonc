@@ -1,0 +1,14 @@
+/* goal-with-update */
+
+{
+  "/json": 1101116.58,
+  "/db": 356455.31,
+  "/queries?q=": 339078.2,
+  "/queries?q=42": 12347.35,
+  "/queries?q=1024": 1164.77,
+  "/fortunes": 311174.36,
+  "/updates?q=": 5051.14,
+  "/updates?q=42": 1731.38,
+  "/updates?q=1024": 124.23,
+  "/plaintext": 1076230.91
+}

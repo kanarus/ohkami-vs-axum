@@ -10,11 +10,11 @@ branch = "v0.24"
 features = ["rt_tokio"]
 
 [dependencies]
-tokio        = { version = "1.43", features = ["full"] }
-yarte        = { version = "0.15" }
-futures-util = { version = "0.3"  }
-rand         = { version = "0.8", features = ["small_rng"] }
-sqlx         = { version = "0.8", features = ["runtime-tokio", "postgres"] }
+tokio          = { version = "1.43", features = ["full"] }
+yarte          = { version = "0.15" }
+futures-util   = { version = "0.3"  }
+rand           = { version = "0.8", features = ["small_rng"] }
+tokio-postgres = { version = "0.7" }
 
 [profile.release]
 lto           = true

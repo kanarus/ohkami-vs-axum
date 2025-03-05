@@ -1,0 +1,14 @@
+/* using-rand-sample_iter */
+
+{
+  "/json": 1128732.25,
+  "/db": 131838.28,
+  "/queries?q=": 130061.49,
+  "/queries?q=42": 3153.54,
+  "/queries?q=1024": 265.01,
+  "/fortunes": 127130.41,
+  "/updates?q=": 1081041.05,
+  "/updates?q=42": 904296.48,
+  "/updates?q=1024": 989658.39,
+  "/plaintext": 892094.66
+}
