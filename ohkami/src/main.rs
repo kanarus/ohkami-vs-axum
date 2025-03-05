@@ -20,12 +20,11 @@ use {
 pub async fn main() {
     Ohkami::new((
         SetServer,
-        Postgres::init().await,
+        Context::new(Postgres::new().await),
         "/json"     .GET(json_serialization),
         "/db"       .GET(single_database_query),
         "/queries"  .GET(multiple_database_query),
         "/fortunes" .GET(fortunes),
-        "/updates"  .GET(database_updates),
         "/plaintext".GET(plaintext),
     )).howl("localhost:8000").await
 }
@@ -64,13 +63,15 @@ async fn fortunes(
     FortunesTemplate { fortunes }
 }
 
+/// This must not be used for actual benchmark.
+/// See [`Postgres::update_randomnumbers_of_worlds`] for details.
+#[allow(unused)]
 async fn database_updates(
     Query(q): Query<WorldsMeta<'_>>,
     Context(db): Context<'_, Postgres>,
 ) -> JSON<Vec<World>> {
     let n = q.parse();
-    let mut worlds = db.select_n_random_worlds(n).await;
-    db.update_random_ids_of_worlds(&mut worlds).await;
+    let worlds = db.update_randomnumbers_of_worlds(n).await;
     JSON(worlds)
 }
 

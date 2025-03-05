@@ -1,62 +1,148 @@
 use futures_util::{stream::FuturesUnordered, TryStreamExt};
 use rand::{rngs::SmallRng, SeedableRng, Rng, thread_rng};
+use sqlx::{Statement, postgres::PgStatement};
 use crate::models::{World, Fortune};
 
 #[derive(Clone)]
-pub struct Postgres(sqlx::PgPool);
+pub struct Postgres {
+    pool:       sqlx::PgPool,
+    statements: TechEmpowerPostgresStatements,
+}
 
-impl From<sqlx::PgPool> for Postgres {
-    fn from(pgpool: sqlx::PgPool) -> Self {
-        Self(pgpool)
+#[derive(Clone)]
+struct TechEmpowerPostgresStatements {
+    select_world_by_id:  PgStatement<'static>,
+    select_all_fortunes: PgStatement<'static>,
+    update_worlds:       PgStatement<'static>,
+}
+
+impl Postgres {
+    pub async fn new() -> Self {
+        use sqlx::Executor as _;
+
+        macro_rules! load_env {
+            ($($name:ident as $t:ty)*) => {$(
+                #[allow(non_snake_case)]
+                let $name = ::std::env::var(stringify!($name))
+                    .expect(concat!(
+                        "failed to load environment variable ",
+                        "`", stringify!($name), "`"
+                    ))
+                    .parse::<$t>()
+                    .unwrap();
+            )*};
+        } load_env! {
+            MAX_CONNECTIONS as u32
+            MIN_CONNECTIONS as u32
+            DATABASE_URL    as String
+        }
+        
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(MAX_CONNECTIONS)
+            .min_connections(MIN_CONNECTIONS)
+            .connect(&DATABASE_URL).await
+            .unwrap();
+        
+        let statements = TechEmpowerPostgresStatements {
+            select_world_by_id: pool
+                .prepare("SELECT id, randomnumber FROM world WHERE id = $1 LIMIT 1")
+                .await
+                .unwrap(),
+            select_all_fortunes: pool
+                .prepare("SELECT id, message FROM fortune")
+                .await
+                .unwrap(),
+            update_worlds: pool
+                .prepare("\
+                    UPDATE world SET randomnumber = new.randomnumber FROM ( \
+                        SELECT * FROM UNNEST($1::int[], $2::int[]) AS v(id, randomnumber) \
+                    ) AS new WHERE world.id = new.id \
+                ")
+                .await
+                .unwrap(),
+        };
+
+        Self { pool, statements }
     }
 }
 
 impl Postgres {
+    const ID_RANGE: std::ops::Range<i32> = 1..10001;
+
     pub async fn select_random_world(&self) -> World {
         let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
     
-        sqlx::query_as("SELECT id, randomnumber FROM World WHERE id = $1")
-            .bind((rng.r#gen::<u32>() % 10_000 + 1) as i32)
-            .fetch_one(&self.0).await
-            .expect("Failed to fetch a world")
+        self.statements
+            .select_world_by_id
+            .query_as()
+            .bind(rng.gen_range(Self::ID_RANGE))
+            .fetch_one(&self.pool)
+            .await
+            .expect("failed to fetch a world")
     }
     
     pub async fn select_all_fortunes(&self) -> Vec<Fortune> {
-        sqlx::query_as("SELECT id, message FROM Fortune")
-            .fetch_all(&self.0).await
-            .expect("Failed to fetch fortunes")
+        self.statements
+            .select_all_fortunes
+            .query_as()
+            .fetch_all(&self.pool)
+            .await
+            .expect("failed to fetch fortunes")
     }
     
     pub async fn select_n_random_worlds(&self, n: usize) -> Vec<World> {
         let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
-    
+        
         let selects = FuturesUnordered::new();
         for _ in 0..n {
             selects.push(
-                sqlx::query_as("SELECT id, randomnumber FROM World WHERE id = $1")
-                    .bind((rng.r#gen::<u32>() % 10_000 + 1) as i32)
-                    .fetch_one(&self.0)
+                self.statements
+                    .select_world_by_id
+                    .query_as()
+                    .bind(rng.gen_range(Self::ID_RANGE))
+                    .fetch_one(&self.pool)
             )
         }
-    
-        selects.try_collect().await.expect("Failed to fetch worlds")
+        selects.try_collect().await.expect("failed to fetch worlds")
     }
     
-    pub async fn update_random_ids_of_worlds(&self, worlds: &mut Vec<World>) {
+    /// This correctly uses transaction to select and update world, with
+    /// bulk-fetching and bulk-updateing in ordinary way, but violating the benchmark spec
+    /// (https://github.com/TechEmpower/FrameworkBenchmarks/wiki/Project-Information-Framework-Tests-Overview#database-updates)
+    /// that requires to fetch each world by one select.
+    /// 
+    /// So this must not be used for actual benchmark.
+    /// 
+    /// It seems to be impossible to perform such (non-realistic) transactions without deadlock.
+    pub async fn update_randomnumbers_of_worlds(&self, n: usize) -> Vec<World> {
         let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
-    
-        let updates = FuturesUnordered::new();
-        for w in worlds {
-            w.randomnumber = (rng.r#gen::<u32>() % 10_000 + 1) as i32;
-            updates.push(
-                sqlx::query(
-                    "UPDATE World SET randomnumber = $1 WHERE id = $2")
-                    .bind(w.randomnumber)
-                    .bind(w.id)
-                    .execute(&self.0)
-            )
+
+        let mut tx = self.pool.begin().await.expect("failed to begin transaction");
+
+        let mut worlds: Vec<World> = sqlx::query_as("SELECT id, randomnumber FROM world WHERE id = ANY($1::int[])")
+            .bind(vec![rng.gen_range(Self::ID_RANGE); n])
+            .fetch_all(&mut *tx)
+            .await
+            .expect("failed to fetch world");
+
+        let (mut ids, mut randomnumbers) = (Vec::with_capacity(n), Vec::with_capacity(n));
+        for w in &mut worlds {
+            w.randomnumber = rng.gen_range(Self::ID_RANGE);
+            ids.push(w.id);
+            randomnumbers.push(w.randomnumber);
         }
-    
-        let _: sqlx::postgres::PgQueryResult = updates.try_collect().await.expect("Failed to fetch worlds");
+
+        self.statements
+            .update_worlds
+            .query()
+            .bind(ids)
+            .bind(randomnumbers)
+            .execute(&mut *tx)
+            .await
+            .expect("failed to update worlds");
+
+        tx.commit().await.expect("failed to commit transaction");
+
+        worlds
     }
 }

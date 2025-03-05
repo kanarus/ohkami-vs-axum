@@ -21,13 +21,6 @@ function run_benchmark () {
 
     wd="$PWD"
 
-    echo "Starting benchmark..."
-
-    echo "For manual cleanup, run:
-
-        kill \$(ps aux | awk '/target\\/release/ {print \$2}') ; docker container stop 'postgres'
-    "
-
     docker run -d --rm \
         -p 5432:5432 \
         -e POSTGRES_USER=benchmarkdbuser \
@@ -37,7 +30,7 @@ function run_benchmark () {
         --name postgres \
         postgres:17-bookworm
 
-    sleep 3s
+    sleep 5s
 
     cd ./$framework && \
     cargo build --release && \
@@ -55,13 +48,13 @@ function run_benchmark () {
         '/queries?q=42'
         '/queries?q=1024'
         '/fortunes'
-        '/updates?q='
-        '/updates?q=42'
-        '/updates?q=1024'
         '/plaintext'
+        #'/updates?q='
+        #'/updates?q=42'
+        #'/updates?q=1024'
     )
     for path in "${paths[@]}"; do
-        echo ''
+        echo
         echo "preparing benchmark for '$path'..."
 
         sleep 30s
@@ -78,10 +71,9 @@ function run_benchmark () {
     timestamp=$(date -u +'%Y%m%d%H%M%S')
     log_jsonc="./.log/$framework-$timestamp-$comment.jsonc"
     echo "/* $comment */" >  $log_jsonc
-    echo ""               >> $log_jsonc
+    echo                  >> $log_jsonc
     echo $result | jq     >> $log_jsonc
-
-    echo ''
+    echo
     echo "Finishing benchmark..."
 }
 
@@ -89,16 +81,20 @@ function cleanup() {
     echo "Cleaning up..."
 
     kill $(ps aux | awk '/target\/release/ {print $2}')
-
     docker container stop 'postgres'
-
-    echo "Done !"
 }
-
 
 if [ $# != 2 ]; then
     echo 'usage: ./bench.sh <framework> <comment (what you changed for it)>'
     exit 1
 fi
+(cleanup 2>&1 | cat > /dev/null) || :
+echo "Starting benchmark..."
+echo "For manual cleanup, run:
+
+    kill \$(ps aux | awk '/target\\/release/ {print \$2}') ; docker container stop 'postgres'
+"
+sleep 5s
 run_benchmark "$1" "$2"
 cleanup
+echo "Done !"
