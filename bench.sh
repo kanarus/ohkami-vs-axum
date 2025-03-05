@@ -69,15 +69,17 @@ function run_benchmark () {
     result="{$result}"
 
     timestamp=$(date -u +'%Y%m%d%H%M%S')
-    log_jsonc="./.log/$framework-$timestamp.jsonc"
+    log_jsonc="./.log/$framework-$timestamp-$comment.jsonc"
     echo "/* $comment */" >  $log_jsonc
     echo                  >> $log_jsonc
     echo $result | jq     >> $log_jsonc
-
+    echo
     echo "Finishing benchmark..."
 }
 
 function cleanup() {
+    echo "Cleaning up..."
+
     kill $(ps aux | awk '/target\/release/ {print $2}')
     docker container stop 'postgres'
 }
