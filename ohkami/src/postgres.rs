@@ -1,58 +1,45 @@
-use futures_util::{stream::FuturesUnordered, TryStreamExt};
-use rand::{rngs::SmallRng, SeedableRng, Rng, thread_rng};
-use sqlx::{Statement, postgres::PgStatement};
 use crate::models::{World, Fortune};
+use std::sync::Arc;
+use tokio_postgres::{Client, Statement};
+use futures_util::stream::{StreamExt, FuturesUnordered};
+use rand::{rngs::SmallRng, SeedableRng, Rng, distributions::Uniform, thread_rng};
 
 #[derive(Clone)]
 pub struct Postgres {
-    pool:       sqlx::PgPool,
+    client:     Arc<Client>,
     statements: TechEmpowerPostgresStatements,
 }
 
 #[derive(Clone)]
 struct TechEmpowerPostgresStatements {
-    select_world_by_id:  PgStatement<'static>,
-    select_all_fortunes: PgStatement<'static>,
-    update_worlds:       PgStatement<'static>,
+    select_world_by_id:  Statement,
+    select_all_fortunes: Statement,
+    update_worlds:       Statement,
 }
 
 impl Postgres {
     pub async fn new() -> Self {
-        use sqlx::Executor as _;
+        let (client, connection) = tokio_postgres::connect(
+            &std::env::var("DATABASE_URL").unwrap(),
+            tokio_postgres::NoTls
+        ).await.expect("failed to connect database");
 
-        macro_rules! load_env {
-            ($($name:ident as $t:ty)*) => {$(
-                #[allow(non_snake_case)]
-                let $name = ::std::env::var(stringify!($name))
-                    .expect(concat!(
-                        "failed to load environment variable ",
-                        "`", stringify!($name), "`"
-                    ))
-                    .parse::<$t>()
-                    .unwrap();
-            )*};
-        } load_env! {
-            MAX_CONNECTIONS as u32
-            MIN_CONNECTIONS as u32
-            DATABASE_URL    as String
-        }
-        
-        let pool = sqlx::postgres::PgPoolOptions::new()
-            .max_connections(MAX_CONNECTIONS)
-            .min_connections(MIN_CONNECTIONS)
-            .connect(&DATABASE_URL).await
-            .unwrap();
+        tokio::spawn(async {
+            if let Err(e) = connection.await {
+                eprintln!("error in database connection: {e}");
+            }
+        });
         
         let statements = TechEmpowerPostgresStatements {
-            select_world_by_id: pool
+            select_world_by_id: client
                 .prepare("SELECT id, randomnumber FROM world WHERE id = $1 LIMIT 1")
                 .await
                 .unwrap(),
-            select_all_fortunes: pool
+            select_all_fortunes: client
                 .prepare("SELECT id, message FROM fortune")
                 .await
                 .unwrap(),
-            update_worlds: pool
+            update_worlds: client
                 .prepare("\
                     UPDATE world SET randomnumber = new.randomnumber FROM ( \
                         SELECT * FROM UNNEST($1::int[], $2::int[]) AS v(id, randomnumber) \
@@ -62,86 +49,81 @@ impl Postgres {
                 .unwrap(),
         };
 
-        Self { pool, statements }
+        Self { client: Arc::new(client), statements }
     }
 }
 
 impl Postgres {
     const ID_RANGE: std::ops::Range<i32> = 1..10001;
 
+    async fn select_random_world_by_id(&self, id: i32) -> World {
+        let row = self.client
+            .query_one(&self.statements.select_world_by_id, &[&id])
+            .await
+            .expect("failed to fetch a world");
+
+        World {
+            id:           row.get(0),
+            randomnumber: row.get(1),
+        }
+    }
+}
+
+impl Postgres {
     pub async fn select_random_world(&self) -> World {
         let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
-    
-        self.statements
-            .select_world_by_id
-            .query_as()
-            .bind(rng.gen_range(Self::ID_RANGE))
-            .fetch_one(&self.pool)
-            .await
-            .expect("failed to fetch a world")
-    }
-    
-    pub async fn select_all_fortunes(&self) -> Vec<Fortune> {
-        self.statements
-            .select_all_fortunes
-            .query_as()
-            .fetch_all(&self.pool)
-            .await
-            .expect("failed to fetch fortunes")
+        self.select_random_world_by_id(rng.gen_range(Self::ID_RANGE)).await
     }
     
     pub async fn select_n_random_worlds(&self, n: usize) -> Vec<World> {
-        let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
-        
+        let rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
+
         let selects = FuturesUnordered::new();
-        for _ in 0..n {
-            selects.push(
-                self.statements
-                    .select_world_by_id
-                    .query_as()
-                    .bind(rng.gen_range(Self::ID_RANGE))
-                    .fetch_one(&self.pool)
-            )
+        for id in rng.sample_iter(Uniform::new(Self::ID_RANGE.start, Self::ID_RANGE.end)).take(n) {
+            selects.push(self.select_random_world_by_id(id))
         }
-        selects.try_collect().await.expect("failed to fetch worlds")
+
+        selects.collect::<Vec<World>>().await
     }
     
-    /// This correctly uses transaction to select and update world, with
-    /// bulk-fetching and bulk-updateing in ordinary way, but violating the benchmark spec
-    /// (https://github.com/TechEmpower/FrameworkBenchmarks/wiki/Project-Information-Framework-Tests-Overview#database-updates)
-    /// that requires to fetch each world by one select.
-    /// 
-    /// So this must not be used for actual benchmark.
-    /// 
-    /// It seems to be impossible to perform such (non-realistic) transactions without deadlock.
-    pub async fn update_randomnumbers_of_worlds(&self, n: usize) -> Vec<World> {
-        let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
-
-        let mut tx = self.pool.begin().await.expect("failed to begin transaction");
-
-        let mut worlds: Vec<World> = sqlx::query_as("SELECT id, randomnumber FROM world WHERE id = ANY($1::int[])")
-            .bind(vec![rng.gen_range(Self::ID_RANGE); n])
-            .fetch_all(&mut *tx)
+    pub async fn select_all_fortunes(&self) -> Vec<Fortune> {
+        let mut rows = std::pin::pin!(self
+            .client
+            .query_raw::<_, _, &[i32; 0]>(&self.statements.select_all_fortunes, &[])
             .await
-            .expect("failed to fetch world");
+            .expect("failed to fetch fortunes")
+        );
 
-        let (mut ids, mut randomnumbers) = (Vec::with_capacity(n), Vec::with_capacity(n));
-        for w in &mut worlds {
-            w.randomnumber = rng.gen_range(Self::ID_RANGE);
-            ids.push(w.id);
-            randomnumbers.push(w.randomnumber);
+        let mut fortunes = Vec::new();
+        while let Some(row) = rows.next().await.transpose().unwrap() {
+            fortunes.push(Fortune {
+                id:      row.get(0),
+                message: row.get(1),
+            });
         }
 
-        self.statements
-            .update_worlds
-            .query()
-            .bind(ids)
-            .bind(randomnumbers)
-            .execute(&mut *tx)
+        fortunes
+    }
+    
+    pub async fn update_randomnumbers_of_worlds(&self, n: usize) -> Vec<World> {
+        let rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
+
+        let mut worlds = self.select_n_random_worlds(n).await;
+
+        let mut ids = Vec::with_capacity(n);
+        let randomnumbers = rng
+            .sample_iter(Uniform::new(Self::ID_RANGE.start, Self::ID_RANGE.end))
+            .take(n)
+            .collect::<Vec<_>>();
+        for i in 0..n {
+            worlds[i].randomnumber = randomnumbers[i];
+            ids.push(worlds[i].id);
+        }
+
+        self.client
+            .execute(&self.statements.update_worlds, &[&ids, &randomnumbers])
             .await
             .expect("failed to update worlds");
-
-        tx.commit().await.expect("failed to commit transaction");
 
         worlds
     }

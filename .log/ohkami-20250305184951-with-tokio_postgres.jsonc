@@ -1,0 +1,11 @@
+/* with-tokio_postgres */
+
+{
+  "/json": 1137402.37,
+  "/db": 132769.54,
+  "/queries?q=": 131772.35,
+  "/queries?q=42": 3217.93,
+  "/queries?q=1024": 272.54,
+  "/fortunes": 119446.34,
+  "/plaintext": 1136792.79
+}

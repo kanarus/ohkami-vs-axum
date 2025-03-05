@@ -48,10 +48,10 @@ function run_benchmark () {
         '/queries?q=42'
         '/queries?q=1024'
         '/fortunes'
+        '/updates?q='
+        '/updates?q=42'
+        '/updates?q=1024'
         '/plaintext'
-        #'/updates?q='
-        #'/updates?q=42'
-        #'/updates?q=1024'
     )
     for path in "${paths[@]}"; do
         echo
