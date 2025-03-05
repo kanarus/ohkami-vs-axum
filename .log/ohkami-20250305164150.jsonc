@@ -1,0 +1,11 @@
+/* reuse-prepared-statements */
+
+{
+  "/json": 1128196.07,
+  "/db": 73665.01,
+  "/queries?q=": 71656.24,
+  "/queries?q=42": 1730.31,
+  "/queries?q=1024": 145.73,
+  "/fortunes": 46047.03,
+  "/plaintext": 1033918.86
+}

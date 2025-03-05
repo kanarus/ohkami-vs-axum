@@ -25,7 +25,6 @@ pub async fn main() {
         "/db"       .GET(single_database_query),
         "/queries"  .GET(multiple_database_query),
         "/fortunes" .GET(fortunes),
-        "/updates"  .GET(database_updates),
         "/plaintext".GET(plaintext),
     )).howl("localhost:8000").await
 }
@@ -64,6 +63,9 @@ async fn fortunes(
     FortunesTemplate { fortunes }
 }
 
+/// This must not be used for actual benchmark.
+/// See [`Postgres::update_randomnumbers_of_worlds`] for details.
+#[allow(unused)]
 async fn database_updates(
     Query(q): Query<WorldsMeta<'_>>,
     Context(db): Context<'_, Postgres>,

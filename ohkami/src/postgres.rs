@@ -11,10 +11,9 @@ pub struct Postgres {
 
 #[derive(Clone)]
 struct TechEmpowerPostgresStatements {
-    select_world_by_id:            PgStatement<'static>,
-    select_world_by_id_for_update: PgStatement<'static>,
-    select_all_fortunes:           PgStatement<'static>,
-    update_worlds:                 PgStatement<'static>,
+    select_world_by_id:  PgStatement<'static>,
+    select_all_fortunes: PgStatement<'static>,
+    update_worlds:       PgStatement<'static>,
 }
 
 impl Postgres {
@@ -37,7 +36,7 @@ impl Postgres {
             MIN_CONNECTIONS as u32
             DATABASE_URL    as String
         }
-            
+        
         let pool = sqlx::postgres::PgPoolOptions::new()
             .max_connections(MAX_CONNECTIONS)
             .min_connections(MIN_CONNECTIONS)
@@ -49,10 +48,6 @@ impl Postgres {
                 .prepare("SELECT id, randomnumber FROM world WHERE id = $1 LIMIT 1")
                 .await
                 .unwrap(),
-            select_world_by_id_for_update: pool
-                .prepare("SELECT id, randomnumber FROM world WHERE id = $1 LIMIT 1 FOR UPDATE")
-                .await
-                .unwrap(),
             select_all_fortunes: pool
                 .prepare("SELECT id, message FROM fortune")
                 .await
@@ -61,9 +56,7 @@ impl Postgres {
                 .prepare("\
                     UPDATE world SET randomnumber = new.randomnumber FROM ( \
                         SELECT * FROM UNNEST($1::int[], $2::int[]) AS v(id, randomnumber) \
-                        ORDER BY randomnumber \
-                    ) AS new \
-                    WHERE world.id = new.id \
+                    ) AS new WHERE world.id = new.id \
                 ")
                 .await
                 .unwrap(),
@@ -113,23 +106,24 @@ impl Postgres {
         selects.try_collect().await.expect("failed to fetch worlds")
     }
     
+    /// This correctly uses transaction to select and update world, with
+    /// bulk-fetching and bulk-updateing in ordinary way, but violating the benchmark spec
+    /// (https://github.com/TechEmpower/FrameworkBenchmarks/wiki/Project-Information-Framework-Tests-Overview#database-updates)
+    /// that requires to fetch each world by one select.
+    /// 
+    /// So this must not be used for actual benchmark.
+    /// 
+    /// It seems to be impossible to perform such (non-realistic) transactions without deadlock.
     pub async fn update_randomnumbers_of_worlds(&self, n: usize) -> Vec<World> {
         let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
 
         let mut tx = self.pool.begin().await.expect("failed to begin transaction");
 
-        let mut worlds: Vec<World> = Vec::with_capacity(n);
-        for _ in 0..n {
-            worlds.push(
-                self.statements
-                    .select_world_by_id_for_update
-                    .query_as()
-                    .bind(rng.gen_range(Self::ID_RANGE))
-                    .fetch_one(&mut *tx)
-                    .await
-                    .expect("failed to fetch world")
-            );
-        }
+        let mut worlds: Vec<World> = sqlx::query_as("SELECT id, randomnumber FROM world WHERE id = ANY($1::int[])")
+            .bind(vec![rng.gen_range(Self::ID_RANGE); n])
+            .fetch_all(&mut *tx)
+            .await
+            .expect("failed to fetch world");
 
         let (mut ids, mut randomnumbers) = (Vec::with_capacity(n), Vec::with_capacity(n));
         for w in &mut worlds {
