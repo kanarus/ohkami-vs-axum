@@ -16,8 +16,25 @@ struct TechEmpowerPostgresStatements {
     update_worlds:       PgStatement<'static>,
 }
 
+static POOL: std::sync::OnceLock<Postgres> = std::sync::OnceLock::new();
+
 impl Postgres {
-    pub async fn new() -> Self {
+    pub async fn init() {
+        POOL.set(Self::new().await).ok().unwrap();
+    }
+}
+
+impl<'req> ohkami::FromRequest<'req> for &'req Postgres {
+    type Error = std::convert::Infallible;
+
+    fn from_request(_: &'req ohkami::Request) -> Option<Result<Self, Self::Error>> {
+        let pool: &'static _ = POOL.get().unwrap();
+        Some(Ok(pool))
+    }
+}
+
+impl Postgres {
+    async fn new() -> Self {
         use sqlx::Executor as _;
 
         macro_rules! load_env {

@@ -1,0 +1,11 @@
+/* get-connection-pool-directly */
+
+{
+  "/json": 1138052.1,
+  "/db": 73969.33,
+  "/queries?q=": 72804.84,
+  "/queries?q=42": 1768.15,
+  "/queries?q=1024": 146.91,
+  "/fortunes": 50518.7,
+  "/plaintext": 909738.64
+}
