@@ -64,7 +64,6 @@ async fn fortunes(
     FortunesTemplate { fortunes }
 }
 
-#[allow(unused)]
 async fn database_updates(
     Query(q): Query<WorldsMeta<'_>>,
     Context(db): Context<'_, Postgres>,
