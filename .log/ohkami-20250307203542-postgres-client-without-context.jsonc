@@ -1,0 +1,14 @@
+/* postgres-client-without-context */
+
+{
+  "/json": 1159791.44,
+  "/db": 315976.34,
+  "/queries?q=": 304908.18,
+  "/queries?q=42": 12779.88,
+  "/queries?q=1024": 1098.33,
+  "/fortunes": 285800.99,
+  "/updates?q=": 1046331.9,
+  "/updates?q=42": 921847.13,
+  "/updates?q=1024": 1135825.25,
+  "/plaintext": 1146095.07
+}

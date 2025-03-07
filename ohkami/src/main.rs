@@ -18,9 +18,11 @@ use {
 
 #[tokio::main]
 async fn main() {
+    Postgres::init().await;
+
     Ohkami::new((
         SetServer,
-        Context::new(Postgres::new().await),
+        // Context::new(Postgres::new().await),
         "/json"     .GET(json_serialization),
         "/db"       .GET(single_database_query),
         "/queries"  .GET(multiple_database_query),
@@ -37,7 +39,7 @@ async fn json_serialization() -> JSON<Message> {
 }
 
 async fn single_database_query(
-    Context(db): Context<'_, Postgres>,
+    db: &Postgres,
 ) -> JSON<World> {
     let world = db.select_random_world().await;
     JSON(world)
@@ -45,7 +47,7 @@ async fn single_database_query(
 
 async fn multiple_database_query(
     Query(q): Query<WorldsMeta<'_>>,
-    Context(db): Context<'_, Postgres>,
+    db: &Postgres,
 ) -> JSON<Vec<World>> {
     let n = q.parse();
     let worlds = db.select_n_random_worlds(n).await;
@@ -53,7 +55,7 @@ async fn multiple_database_query(
 }
 
 async fn fortunes(
-    Context(db): Context<'_, Postgres>,
+    db: &Postgres,
 ) -> FortunesTemplate {
     let mut fortunes = db.select_all_fortunes().await;
     fortunes.push(Fortune {
@@ -66,7 +68,7 @@ async fn fortunes(
 
 async fn database_updates(
     Query(q): Query<WorldsMeta<'_>>,
-    Context(db): Context<'_, Postgres>,
+    db: &Postgres,
 ) -> JSON<Vec<World>> {
     let n = q.parse();
     let worlds = db.update_randomnumbers_of_n_worlds(n).await;

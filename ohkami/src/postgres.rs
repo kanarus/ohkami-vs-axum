@@ -7,8 +7,24 @@ use rand::{rngs::SmallRng, SeedableRng, Rng, distributions::Uniform, thread_rng}
 pub struct Postgres {
     pool: Arc<PostgresPool>,
 }
+const _: () = {
+    static POSTGRES: std::sync::OnceLock<Postgres> = std::sync::OnceLock::new();
+    impl Postgres {
+        pub async fn init() {
+            POSTGRES.set(Self::new().await).ok().unwrap();
+        }
+    }
+    impl<'req> ohkami::FromRequest<'req> for &'req Postgres {
+        type Error = std::convert::Infallible;
+
+        #[inline]
+        fn from_request(_: &'req ohkami::Request) -> Option<Result<Self, Self::Error>> {
+            Some(Ok(POSTGRES.get().unwrap()))
+        }
+    }
+};
 impl Postgres {
-    pub async fn new() -> Self {
+    async fn new() -> Self {
         let pool = PostgresPool::new().await;
 
         Self { pool: Arc::new(pool) }
@@ -50,6 +66,7 @@ impl PostgresPool {
         Self { clients }
     }
 
+    #[inline]
     fn get(&self) -> &Client {
         use std::sync::OnceLock;
         use std::sync::atomic::{AtomicUsize, Ordering};
