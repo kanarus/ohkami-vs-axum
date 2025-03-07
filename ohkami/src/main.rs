@@ -18,29 +18,6 @@ use {
 
 #[tokio::main]
 async fn main() {
-    /// ref: https://github.com/TechEmpower/FrameworkBenchmarks/blob/38c565ebaa900b4db51c0425d11a6619a5615a79/frameworks/Rust/axum/src/server.rs
-    async fn serve(o: Ohkami) -> std::io::Result<()> {
-        let socket = tokio::net::TcpSocket::new_v4()?;
-
-        socket.set_reuseport(true)?;
-        socket.set_reuseaddr(true)?;
-        socket.set_nodelay(true)?;
-
-        socket.bind("0.0.0.0:8000".parse().unwrap())?;
-
-        let listener = socket.listen(4096)?;
-
-        println!("an Ohkami is howling on port 8000 !");
-
-        o.howl(listener).await;
-
-        Ok(())
-    }
-    
-    serve(ohkami().await).await.expect("serve error")
-}
-
-pub async fn ohkami() -> Ohkami {
     Ohkami::new((
         SetServer,
         Context::new(Postgres::new().await),
@@ -50,7 +27,7 @@ pub async fn ohkami() -> Ohkami {
         "/fortunes" .GET(fortunes),
         "/update"   .GET(database_updates),
         "/plaintext".GET(plaintext),
-    ))
+    )).howl("0.0.0.0:8000").await
 }
 
 async fn json_serialization() -> JSON<Message> {
