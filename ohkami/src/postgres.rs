@@ -9,50 +9,56 @@ pub struct Postgres {
     pool: Arc<PostgresPool>,
 }
 impl Postgres {
-    fn get(&self) -> &Client {
-        let next = self.pool.next.fetch_add(1, Ordering::Relaxed);
-        &self.pool.clients[next % self.pool.clients.capacity()]
-    }
-}
-impl Postgres {
     pub async fn new() -> Self {
-        let mut clients = Vec::with_capacity(num_cpus::get());
-        for _ in 0..clients.capacity() {
-            clients.push(Client::new().await);
-        }
+        let pool = PostgresPool::new().await;
 
-        Self {
-            pool: Arc::new(PostgresPool {
-                clients,
-                next: AtomicUsize::new(0)
-            })
-        }
+        Self { pool: Arc::new(pool) }
     }
 
     #[inline]
     pub async fn select_random_world(&self) -> World {
-        self.get().select_random_world().await
+        self.pool.get().select_random_world().await
     }
 
     #[inline]
     pub async fn select_n_random_worlds(&self, n: usize) -> Vec<World> {
-        self.get().select_n_random_worlds(n).await
+        self.pool.get().select_n_random_worlds(n).await
     }
 
     #[inline]
     pub async fn select_all_fortunes(&self) -> Vec<Fortune> {
-        self.get().select_all_fortunes().await
+        self.pool.get().select_all_fortunes().await
     }
 
     #[inline]
     pub async fn update_randomnumbers_of_n_worlds(&self, n: usize) -> Vec<World> {
-        self.get().update_randomnumbers_of_n_worlds(n).await
+        self.pool.get().update_randomnumbers_of_n_worlds(n).await
     }
 }
 
 struct PostgresPool {
     clients: Vec<Client>,
     next:    AtomicUsize,
+    size:    usize,
+}
+impl PostgresPool {
+    async fn new() -> Self {
+        let size = num_cpus::get();
+
+        let next = AtomicUsize::new(0);
+
+        let mut clients = Vec::with_capacity(size);
+        for _ in 0..size {
+            clients.push(Client::new().await);
+        }
+
+        Self { clients, next, size }
+    }
+
+    fn get(&self) -> &Client {
+        let next = self.next.fetch_add(1, Ordering::Relaxed);
+        &self.clients[next % self.size]
+    }
 }
 
 struct Client {
