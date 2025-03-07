@@ -1,0 +1,14 @@
+/* default-socket-config-3 */
+
+{
+  "/json": 1154519.34,
+  "/db": 317240.67,
+  "/queries?q=": 307230.2,
+  "/queries?q=42": 13392.35,
+  "/queries?q=1024": 1039.93,
+  "/fortunes": 284069.12,
+  "/updates?q=": 1156893.78,
+  "/updates?q=42": 952412.08,
+  "/updates?q=1024": 831892.04,
+  "/plaintext": 982977.91
+}
