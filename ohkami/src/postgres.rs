@@ -35,34 +35,29 @@ impl Postgres {
     }
 }
 
+
 struct PostgresPool {
     clients: Vec<Client>,
 }
 impl PostgresPool {
-    async fn new() -> Self {
-        let size = num_cpus::get();
+    const POOL_SIZE: usize = 1 << 4;
 
-        let mut clients = Vec::with_capacity(size);
-        for _ in 0..size {
+    async fn new() -> Self {
+        let mut clients = Vec::with_capacity(Self::POOL_SIZE);
+        for _ in 0..Self::POOL_SIZE {
             clients.push(Client::new().await);
         }
 
         Self { clients }
     }
 
+    #[inline]
     fn get(&self) -> &Client {
-        use std::sync::OnceLock;
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         static COUNT: AtomicUsize = AtomicUsize::new(0);
 
-        thread_local! {
-            static INDEX: OnceLock<usize> = OnceLock::new();
-        }
-
-        &self.clients[INDEX.with(|i| *i.get_or_init(
-            || COUNT.fetch_add(1, Ordering::Relaxed)
-        ))]
+        &self.clients[COUNT.fetch_add(1, Ordering::Relaxed) & const {Self::POOL_SIZE - 1}]
     }
 }
 

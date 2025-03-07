@@ -1,0 +1,14 @@
+/* postgres-client-by-fixed-size-and-bit-and-with16 */
+
+{
+  "/json": 1154496.29,
+  "/db": 305694.11,
+  "/queries?q=": 298132.14,
+  "/queries?q=42": 12082.36,
+  "/queries?q=1024": 1021.67,
+  "/fortunes": 274720.75,
+  "/updates?q=": 1106836.5,
+  "/updates?q=42": 868134.58,
+  "/updates?q=1024": 946181.16,
+  "/plaintext": 1155538.54
+}
