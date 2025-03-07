@@ -55,6 +55,7 @@ impl PostgresPool {
         Self { clients, next, size }
     }
 
+    #[inline]
     fn get(&self) -> &Client {
         let next = self.next.fetch_add(1, Ordering::Relaxed);
         &self.clients[next % self.size]
