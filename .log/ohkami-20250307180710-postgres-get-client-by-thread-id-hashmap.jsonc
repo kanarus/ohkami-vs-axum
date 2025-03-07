@@ -1,0 +1,14 @@
+/* postgres-get-client-by-thread-id-hashmap */
+
+{
+  "/json": 1146384.91,
+  "/db": 317011.22,
+  "/queries?q=": 307713.21,
+  "/queries?q=42": 16382.14,
+  "/queries?q=1024": 1289.72,
+  "/fortunes": 281998.59,
+  "/updates?q=": 1156479.09,
+  "/updates?q=42": 1090221.83,
+  "/updates?q=1024": 1053755.52,
+  "/plaintext": 1142942.28
+}

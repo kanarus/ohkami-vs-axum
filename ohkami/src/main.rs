@@ -16,7 +16,8 @@ use {
     ohkami::format::Query,
 };
 
-fn main() {
+#[tokio::main]
+async fn main() {
     /// ref: https://github.com/TechEmpower/FrameworkBenchmarks/blob/38c565ebaa900b4db51c0425d11a6619a5615a79/frameworks/Rust/axum/src/server.rs
     async fn serve(o: Ohkami) -> std::io::Result<()> {
         let socket = tokio::net::TcpSocket::new_v4()?;
@@ -35,27 +36,8 @@ fn main() {
 
         Ok(())
     }
-
-    // for _ in 1..num_cpus::get() {
-    //     std::thread::spawn(|| {
-    //         tokio::runtime::Builder::new_current_thread()
-    //             .enable_all()
-    //             .build()
-    //             .unwrap()
-    //             .block_on(async {serve(ohkami().await).await.expect("serve error")})
-    //     });
-    // }
-    // tokio::runtime::Builder::new_current_thread()
-    //     .enable_all()
-    //     .build()
-    //     .unwrap()
-    //     .block_on(async {serve(ohkami().await).await.expect("serve error")});
-
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {serve(ohkami().await).await.expect("serve error")});
+    
+    serve(ohkami().await).await.expect("serve error")
 }
 
 pub async fn ohkami() -> Ohkami {
