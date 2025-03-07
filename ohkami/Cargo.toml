@@ -16,6 +16,7 @@ futures-util   = { version = "0.3"  }
 rand           = { version = "0.8", features = ["small_rng"] }
 tokio-postgres = { version = "0.7" }
 num_cpus       = { version = "1.16" }
+mimalloc       = { version = "0.1" }
 
 [profile.release]
 lto           = true
