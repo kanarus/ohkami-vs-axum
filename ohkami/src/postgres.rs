@@ -36,38 +36,8 @@ impl Postgres {
 }
 
 struct PostgresPool {
-    lock: std::sync::RwLock<()>,
-    pending: std::cell::UnsafeCell<Vec<Client>>,
-    known: std::cell::UnsafeCell<
-        std::collections::HashMap<
-            std::thread::ThreadId,
-            Client,
-            std::hash::BuildHasherDefault<AsIsHasher>
-        >
-    >,
+    clients: Vec<Client>,
 }
-unsafe impl Send for PostgresPool {}
-unsafe impl Sync for PostgresPool {}
-struct AsIsHasher(u64);
-const _: () = {
-    impl Default for AsIsHasher {
-        fn default() -> Self {
-            Self(0)
-        }
-    }
-
-    impl std::hash::Hasher for AsIsHasher {
-        fn write(&mut self, _bytes: &[u8]) {
-            unreachable!()
-        }
-        fn write_u64(&mut self, i: u64) {
-            self.0 = i;
-        }
-        fn finish(&self) -> u64 {
-            self.0
-        }
-    }
-};
 impl PostgresPool {
     async fn new() -> Self {
         let size = num_cpus::get();
@@ -77,38 +47,22 @@ impl PostgresPool {
             clients.push(Client::new().await);
         }
 
-        let map = std::collections::HashMap::with_capacity_and_hasher(
-            size,
-            Default::default()
-        );
-
-        Self {
-            // size,
-            pending: std::cell::UnsafeCell::new(clients),
-            known: std::cell::UnsafeCell::new(map),
-            lock: std::sync::RwLock::new(()),
-        }
+        Self { clients }
     }
 
-    #[inline]
     fn get(&self) -> &Client {
-        let thread_id = std::thread::current().id();
+        use std::sync::OnceLock;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
-        {let _read = self.lock.read().unwrap();
-            match (unsafe {&*self.known.get()}).get(&thread_id) {
-                Some(client) => client,
-                None => {drop(_read);
-                    {let _write = self.lock.write().unwrap();
-                        let client = unsafe {&mut *self.pending.get()}
-                            .pop()
-                            .unwrap();
-                        (unsafe {&mut *self.known.get()})
-                            .insert(thread_id, client);
-                        &(unsafe {&*self.known.get()})[&thread_id]
-                    }
-                }
-            }
+        static COUNT: AtomicUsize = AtomicUsize::new(0);
+
+        thread_local! {
+            static INDEX: OnceLock<usize> = OnceLock::new();
         }
+
+        &self.clients[INDEX.with(|i| *i.get_or_init(
+            || COUNT.fetch_add(1, Ordering::Relaxed)
+        ))]
     }
 }
 

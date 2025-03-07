@@ -1,0 +1,14 @@
+/* postgres-client-by-thread-local-index */
+
+{
+  "/json": 1155455.17,
+  "/db": 316297.11,
+  "/queries?q=": 303447.52,
+  "/queries?q=42": 16711.06,
+  "/queries?q=1024": 1332.48,
+  "/fortunes": 281800.78,
+  "/updates?q=": 1149193.74,
+  "/updates?q=42": 1132806.48,
+  "/updates?q=1024": 1020624.42,
+  "/plaintext": 1130413.57
+}
