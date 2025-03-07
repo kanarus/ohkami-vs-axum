@@ -1,0 +1,14 @@
+/* postgres-client-multiplexing */
+
+{
+  "/json": 1145467.81,
+  "/db": 306880.16,
+  "/queries?q=": 294516.75,
+  "/queries?q=42": 15897.27,
+  "/queries?q=1024": 1289.55,
+  "/fortunes": 270887.13,
+  "/updates?q=": 1155650.61,
+  "/updates?q=42": 1160964.92,
+  "/updates?q=1024": 1103661.75,
+  "/plaintext": 1146151.72
+}

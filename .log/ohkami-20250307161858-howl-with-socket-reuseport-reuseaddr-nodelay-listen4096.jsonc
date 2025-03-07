@@ -1,0 +1,14 @@
+/* howl-with-socket-reuseport-reuseaddr-nodelay-listen4096 */
+
+{
+  "/json": 1148000.79,
+  "/db": 131983.89,
+  "/queries?q=": 130640.27,
+  "/queries?q=42": 3179.95,
+  "/queries?q=1024": 269.96,
+  "/fortunes": 120443.3,
+  "/updates?q=": 1154807.41,
+  "/updates?q=42": 1141681.55,
+  "/updates?q=1024": 1144426.22,
+  "/plaintext": 1129364.55
+}
