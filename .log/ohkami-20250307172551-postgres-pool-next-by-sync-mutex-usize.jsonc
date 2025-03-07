@@ -1,0 +1,14 @@
+/* postgres-pool-next-by-sync-mutex-usize */
+
+{
+  "/json": 1163008.11,
+  "/db": 304476.85,
+  "/queries?q=": 291617.71,
+  "/queries?q=42": 16915.49,
+  "/queries?q=1024": 1431.78,
+  "/fortunes": 267070.6,
+  "/updates?q=": 1147556.07,
+  "/updates?q=42": 1143528.84,
+  "/updates?q=1024": 1139886.39,
+  "/plaintext": 1134067.14
+}

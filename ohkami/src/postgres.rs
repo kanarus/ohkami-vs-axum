@@ -1,6 +1,6 @@
 use crate::models::{World, Fortune};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+// use std::sync::atomic::{AtomicUsize, Ordering};
 use futures_util::stream::{StreamExt, FuturesUnordered};
 use rand::{rngs::SmallRng, SeedableRng, Rng, distributions::Uniform, thread_rng};
 
@@ -9,50 +9,67 @@ pub struct Postgres {
     pool: Arc<PostgresPool>,
 }
 impl Postgres {
-    fn get(&self) -> &Client {
-        let next = self.pool.next.fetch_add(1, Ordering::Relaxed);
-        &self.pool.clients[next % self.pool.clients.capacity()]
-    }
-}
-impl Postgres {
     pub async fn new() -> Self {
-        let mut clients = Vec::with_capacity(num_cpus::get());
-        for _ in 0..clients.capacity() {
-            clients.push(Client::new().await);
-        }
+        let pool = PostgresPool::new().await;
 
-        Self {
-            pool: Arc::new(PostgresPool {
-                clients,
-                next: AtomicUsize::new(0)
-            })
-        }
+        Self { pool: Arc::new(pool) }
     }
 
     #[inline]
     pub async fn select_random_world(&self) -> World {
-        self.get().select_random_world().await
+        self.pool.get().select_random_world().await
     }
 
     #[inline]
     pub async fn select_n_random_worlds(&self, n: usize) -> Vec<World> {
-        self.get().select_n_random_worlds(n).await
+        self.pool.get().select_n_random_worlds(n).await
     }
 
     #[inline]
     pub async fn select_all_fortunes(&self) -> Vec<Fortune> {
-        self.get().select_all_fortunes().await
+        self.pool.get().select_all_fortunes().await
     }
 
     #[inline]
     pub async fn update_randomnumbers_of_n_worlds(&self, n: usize) -> Vec<World> {
-        self.get().update_randomnumbers_of_n_worlds(n).await
+        self.pool.get().update_randomnumbers_of_n_worlds(n).await
     }
 }
 
 struct PostgresPool {
     clients: Vec<Client>,
-    next:    AtomicUsize,
+
+    /// assuming that the cost of Mutex's blocking is around the same or less than
+    /// that of async context switching
+    next: std::sync::Mutex<usize>,
+}
+impl PostgresPool {
+    async fn new() -> Self {
+        let mut clients = Vec::with_capacity(num_cpus::get());
+        for _ in 0..clients.capacity() {
+            clients.push(Client::new().await);
+        }
+        PostgresPool {
+            clients,
+            next: std::sync::Mutex::new(0),
+        }
+    }
+
+    fn get(&self) -> &Client {
+        // std::thread::current().id().as_u64();
+        let next = {
+            let mut next_lock = self.next.lock().unwrap();
+            let current = *next_lock;
+            let next = if current == (self.clients.capacity() - 1) {
+                0
+            } else {
+                current + 1
+            };
+            *next_lock = next;
+            next
+        };
+        &self.clients[next]
+    }
 }
 
 struct Client {
