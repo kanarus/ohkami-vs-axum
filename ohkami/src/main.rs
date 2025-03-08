@@ -16,18 +16,24 @@ use {
     ohkami::format::Query,
 };
 
-#[tokio::main]
-async fn main() {
-    Ohkami::new((
-        SetServer,
-        Context::new(Postgres::new().await),
-        "/json"     .GET(json_serialization),
-        "/db"       .GET(single_database_query),
-        "/queries"  .GET(multiple_database_query),
-        "/fortunes" .GET(fortunes),
-        "/update"   .GET(database_updates),
-        "/plaintext".GET(plaintext),
-    )).howl("0.0.0.0:8000").await
+fn main() {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .event_interval(11)
+        .build()
+        .unwrap()
+        .block_on(async {
+            Ohkami::new((
+                SetServer,
+                Context::new(Postgres::new().await),
+                "/json"     .GET(json_serialization),
+                "/db"       .GET(single_database_query),
+                "/queries"  .GET(multiple_database_query),
+                "/fortunes" .GET(fortunes),
+                "/update"   .GET(database_updates),
+                "/plaintext".GET(plaintext),
+            )).howl("0.0.0.0:8000").await
+        })
 }
 
 async fn json_serialization() -> JSON<Message> {
