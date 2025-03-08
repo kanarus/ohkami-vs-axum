@@ -3,84 +3,86 @@ use std::sync::Arc;
 use futures_util::stream::{StreamExt, FuturesUnordered};
 use rand::{rngs::SmallRng, SeedableRng, Rng, distributions::Uniform, thread_rng};
 
+// #[derive(Clone)]
+// pub struct Postgres {
+//     pool: Arc<PostgresPool>,
+// }
+// impl Postgres {
+//     pub async fn new() -> Self {
+//         let pool = PostgresPool::new().await;
+// 
+//         Self { pool: Arc::new(pool) }
+//     }
+// 
+//     #[inline]
+//     pub async fn select_random_world(&self) -> World {
+//         self.pool.get().select_random_world().await
+//     }
+// 
+//     #[inline]
+//     pub async fn select_n_random_worlds(&self, n: usize) -> Vec<World> {
+//         self.pool.get().select_n_random_worlds(n).await
+//     }
+// 
+//     #[inline]
+//     pub async fn select_all_fortunes(&self) -> Vec<Fortune> {
+//         self.pool.get().select_all_fortunes().await
+//     }
+// 
+//     #[inline]
+//     pub async fn update_randomnumbers_of_n_worlds(&self, n: usize) -> Vec<World> {
+//         self.pool.get().update_randomnumbers_of_n_worlds(n).await
+//     }
+// }
+// 
+// struct PostgresPool {
+//     clients: Vec<Client>,
+// }
+// impl PostgresPool {
+//     async fn new() -> Self {
+//         let size = num_cpus::get();
+// 
+//         let mut clients = Vec::with_capacity(size);
+//         for _ in 0..size {
+//             clients.push(Client::new().await);
+//         }
+// 
+//         Self { clients }
+//     }
+// 
+//     fn get(&self) -> &Client {
+//         use std::sync::OnceLock;
+//         use std::sync::atomic::{AtomicUsize, Ordering};
+// 
+//         static COUNT: AtomicUsize = AtomicUsize::new(0);
+// 
+//         thread_local! {
+//             static INDEX: OnceLock<usize> = OnceLock::new();
+//         }
+// 
+//         &self.clients[INDEX.with(|i| *i.get_or_init(
+//             || COUNT.fetch_add(1, Ordering::Relaxed)
+//         ))]
+//     }
+// }
+
 #[derive(Clone)]
 pub struct Postgres {
-    pool: Arc<PostgresPool>,
-}
-impl Postgres {
-    pub async fn new() -> Self {
-        let pool = PostgresPool::new().await;
-
-        Self { pool: Arc::new(pool) }
-    }
-
-    #[inline]
-    pub async fn select_random_world(&self) -> World {
-        self.pool.get().select_random_world().await
-    }
-
-    #[inline]
-    pub async fn select_n_random_worlds(&self, n: usize) -> Vec<World> {
-        self.pool.get().select_n_random_worlds(n).await
-    }
-
-    #[inline]
-    pub async fn select_all_fortunes(&self) -> Vec<Fortune> {
-        self.pool.get().select_all_fortunes().await
-    }
-
-    #[inline]
-    pub async fn update_randomnumbers_of_n_worlds(&self, n: usize) -> Vec<World> {
-        self.pool.get().update_randomnumbers_of_n_worlds(n).await
-    }
-}
-
-struct PostgresPool {
-    clients: Vec<Client>,
-}
-impl PostgresPool {
-    async fn new() -> Self {
-        let size = num_cpus::get();
-
-        let mut clients = Vec::with_capacity(size);
-        for _ in 0..size {
-            clients.push(Client::new().await);
-        }
-
-        Self { clients }
-    }
-
-    fn get(&self) -> &Client {
-        use std::sync::OnceLock;
-        use std::sync::atomic::{AtomicUsize, Ordering};
-
-        static COUNT: AtomicUsize = AtomicUsize::new(0);
-
-        thread_local! {
-            static INDEX: OnceLock<usize> = OnceLock::new();
-        }
-
-        &self.clients[INDEX.with(|i| *i.get_or_init(
-            || COUNT.fetch_add(1, Ordering::Relaxed)
-        ))]
-    }
-}
-
-struct Client {
-    client:     tokio_postgres::Client,
+    client:     Arc<tokio_postgres::Client>,
     statements: TechEmpowerStatements,
 }
 
+#[derive(Clone)]
 struct TechEmpowerStatements {
     select_world_by_id:  tokio_postgres::Statement,
     select_all_fortunes: tokio_postgres::Statement,
     update_worlds:       tokio_postgres::Statement,
 }
 
-impl Client {
+impl Postgres {
     const ID_RANGE: std::ops::Range<i32> = 1..10001;
 
-    async fn new() -> Self {
+    pub async fn new() -> Self {
         let (client, connection) = tokio_postgres::connect(
             &std::env::var("DATABASE_URL").unwrap(),
             tokio_postgres::NoTls
@@ -111,7 +113,7 @@ impl Client {
                 .unwrap(),
         };
 
-        Self { client, statements }
+        Self { client: Arc::new(client), statements }
     }
     
     async fn select_random_world_by_id(&self, id: i32) -> World {
@@ -127,13 +129,13 @@ impl Client {
     }
 }
 
-impl Client {
-    async fn select_random_world(&self) -> World {
+impl Postgres {
+    pub async fn select_random_world(&self) -> World {
         let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
         self.select_random_world_by_id(rng.gen_range(Self::ID_RANGE)).await
     }
     
-    async fn select_n_random_worlds(&self, n: usize) -> Vec<World> {
+    pub async fn select_n_random_worlds(&self, n: usize) -> Vec<World> {
         let rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
 
         let selects = FuturesUnordered::new();
@@ -144,7 +146,7 @@ impl Client {
         selects.collect::<Vec<World>>().await
     }
     
-    async fn select_all_fortunes(&self) -> Vec<Fortune> {
+    pub async fn select_all_fortunes(&self) -> Vec<Fortune> {
         let mut rows = std::pin::pin!(self
             .client
             .query_raw::<_, _, &[i32; 0]>(&self.statements.select_all_fortunes, &[])
@@ -163,7 +165,7 @@ impl Client {
         fortunes
     }
     
-    async fn update_randomnumbers_of_n_worlds(&self, n: usize) -> Vec<World> {
+    pub async fn update_randomnumbers_of_n_worlds(&self, n: usize) -> Vec<World> {
         let rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
 
         let mut worlds = self.select_n_random_worlds(n).await;

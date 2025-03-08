@@ -1,0 +1,14 @@
+/* multiple-single-threads-reuseaddr-#2 */
+
+{
+  "/json": 1164042.6,
+  "/db": 374059.32,
+  "/queries?q=": 358389.16,
+  "/queries?q=42": 12295.69,
+  "/queries?q=1024": 1312.98,
+  "/fortunes": 328914.14,
+  "/updates?q=": 840903.95,
+  "/updates?q=42": 1009480.82,
+  "/updates?q=1024": 1039518.5,
+  "/plaintext": 1150048.36
+}
