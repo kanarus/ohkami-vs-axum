@@ -3,69 +3,6 @@ use std::sync::Arc;
 use futures_util::stream::{StreamExt, FuturesUnordered};
 use rand::{rngs::SmallRng, SeedableRng, Rng, distributions::Uniform, thread_rng};
 
-// #[derive(Clone)]
-// pub struct Postgres {
-//     pool: Arc<PostgresPool>,
-// }
-// impl Postgres {
-//     pub async fn new() -> Self {
-//         let pool = PostgresPool::new().await;
-// 
-//         Self { pool: Arc::new(pool) }
-//     }
-// 
-//     #[inline]
-//     pub async fn select_random_world(&self) -> World {
-//         self.pool.get().select_random_world().await
-//     }
-// 
-//     #[inline]
-//     pub async fn select_n_random_worlds(&self, n: usize) -> Vec<World> {
-//         self.pool.get().select_n_random_worlds(n).await
-//     }
-// 
-//     #[inline]
-//     pub async fn select_all_fortunes(&self) -> Vec<Fortune> {
-//         self.pool.get().select_all_fortunes().await
-//     }
-// 
-//     #[inline]
-//     pub async fn update_randomnumbers_of_n_worlds(&self, n: usize) -> Vec<World> {
-//         self.pool.get().update_randomnumbers_of_n_worlds(n).await
-//     }
-// }
-// 
-// struct PostgresPool {
-//     clients: Vec<Client>,
-// }
-// impl PostgresPool {
-//     async fn new() -> Self {
-//         let size = num_cpus::get();
-// 
-//         let mut clients = Vec::with_capacity(size);
-//         for _ in 0..size {
-//             clients.push(Client::new().await);
-//         }
-// 
-//         Self { clients }
-//     }
-// 
-//     fn get(&self) -> &Client {
-//         use std::sync::OnceLock;
-//         use std::sync::atomic::{AtomicUsize, Ordering};
-// 
-//         static COUNT: AtomicUsize = AtomicUsize::new(0);
-// 
-//         thread_local! {
-//             static INDEX: OnceLock<usize> = OnceLock::new();
-//         }
-// 
-//         &self.clients[INDEX.with(|i| *i.get_or_init(
-//             || COUNT.fetch_add(1, Ordering::Relaxed)
-//         ))]
-//     }
-// }
-
 #[derive(Clone)]
 pub struct Postgres {
     client:     Arc<tokio_postgres::Client>,
@@ -80,8 +17,6 @@ struct TechEmpowerStatements {
 }
 
 impl Postgres {
-    const ID_RANGE: std::ops::Range<i32> = 1..10001;
-
     pub async fn new() -> Self {
         let (client, connection) = tokio_postgres::connect(
             &std::env::var("DATABASE_URL").unwrap(),
@@ -115,6 +50,10 @@ impl Postgres {
 
         Self { client: Arc::new(client), statements }
     }
+}
+
+impl Postgres {
+    const ID_RANGE: std::ops::Range<i32> = 1..10001;
     
     async fn select_random_world_by_id(&self, id: i32) -> World {
         let row = self.client
